@@ -7,8 +7,13 @@ import { z } from 'zod';
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key';
 
 const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
+  email: z
+    .string()
+    .min(1, 'Email is required. Please enter your email address.')
+    .email('Please enter a valid email address (e.g., user@example.com).'),
+  password: z
+    .string()
+    .min(1, 'Password is required. Please enter your password.'),
 });
 
 export const login = async (req: Request, res: Response): Promise<void> => {
@@ -52,11 +57,17 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      res.status(400).json({ error: 'Invalid input', details: error.errors });
+      const errorMessages = error.errors.map((err) => {
+        const field = err.path.join('.');
+        return `• ${field ? `${field}: ` : ''}${err.message}`;
+      });
+      res.status(400).json({ 
+        error: `Please fix the following:\n${errorMessages.join('\n')}`,
+        details: error.errors 
+      });
       return;
     }
     console.error('Login error:', error);
-    // Return user-friendly message instead of exposing internal errors
     res.status(401).json({ error: 'Login credential does not match' });
   }
 };
@@ -86,7 +97,9 @@ export const getCurrentUser = async (req: Request, res: Response): Promise<void>
     res.json(user);
   } catch (error) {
     console.error('Get current user error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ 
+      error: 'Unable to retrieve user information. Please refresh the page or log in again.' 
+    });
   }
 };
 

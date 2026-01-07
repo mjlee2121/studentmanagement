@@ -9,6 +9,8 @@ import * as progressController from '../controllers/progressController.js';
 import * as testScoreController from '../controllers/testScoreController.js';
 import * as invoiceController from '../controllers/invoiceController.js';
 import * as noteController from '../controllers/noteController.js';
+import * as pdfController from '../controllers/pdfController.js';
+import { upload } from '../middleware/upload.js';
 import {
   isAdmin,
   isAdminOrStaff,
@@ -25,6 +27,7 @@ router.get('/auth/me', authenticateToken, authController.getCurrentUser);
 router.get('/students', authenticateToken, studentController.getStudents);
 router.get('/students/:id', authenticateToken, studentController.getStudent);
 router.post('/students', authenticateToken, isAdminOrStaff, studentController.createStudent);
+router.post('/students/parse-application', authenticateToken, isAdminOrStaff, upload.single('file'), pdfController.parseApplicationForm);
 router.put('/students/:id', authenticateToken, isAdminOrStaff, studentController.updateStudent);
 router.delete('/students/:id', authenticateToken, isAdmin, studentController.deleteStudent);
 

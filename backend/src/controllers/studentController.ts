@@ -4,11 +4,26 @@ import { z } from 'zod';
 import { UserRole } from '../types.js';
 
 const studentCreateSchema = z.object({
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
-  email: z.string().email().optional(),
+  firstName: z
+    .string()
+    .min(1, 'First name is required. Please enter the student\'s first name.'),
+  lastName: z
+    .string()
+    .min(1, 'Last name is required. Please enter the student\'s last name.'),
+  email: z
+    .string()
+    .email('Please enter a valid email address (e.g., student@example.com).')
+    .optional()
+    .or(z.literal('')),
   phone: z.string().optional(),
-  dateOfBirth: z.string().datetime().optional(),
+  dateOfBirth: z
+    .string()
+    .refine(
+      (val) => !val || !isNaN(Date.parse(val)),
+      'Please enter a valid date format (YYYY-MM-DD).'
+    )
+    .optional()
+    .or(z.literal('')),
   // Admission fields
   passportCollected: z.boolean().optional(),
   applicationFormCollected: z.boolean().optional(),
@@ -18,12 +33,26 @@ const studentCreateSchema = z.object({
   desiredUniversities: z.array(z.string()).optional(),
   major: z.string().optional(),
   homestayAddress: z.string().optional(),
-  bostonArrivalDate: z.string().datetime().optional(),
+  bostonArrivalDate: z
+    .string()
+    .refine(
+      (val) => !val || !isNaN(Date.parse(val)),
+      'Please enter a valid Boston arrival date format (YYYY-MM-DD).'
+    )
+    .optional()
+    .or(z.literal('')),
   shorelightApplication: z.boolean().optional(),
   shorelightUniversities: z.array(z.string()).optional(),
   // Graduation fields
   stage2Services: z.boolean().optional(),
-  expectedGraduationDate: z.string().datetime().optional(),
+  expectedGraduationDate: z
+    .string()
+    .refine(
+      (val) => !val || !isNaN(Date.parse(val)),
+      'Please enter a valid expected graduation date format (YYYY-MM-DD).'
+    )
+    .optional()
+    .or(z.literal('')),
 });
 
 const studentUpdateSchema = studentCreateSchema.partial();
@@ -93,7 +122,9 @@ export const getStudents = async (req: Request, res: Response): Promise<void> =>
     });
   } catch (error) {
     console.error('Get students error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ 
+      error: 'Unable to load students. Please refresh the page or try again later.' 
+    });
   }
 };
 
@@ -147,7 +178,7 @@ export const getStudent = async (req: Request, res: Response): Promise<void> => 
     });
 
     if (!student) {
-      res.status(404).json({ error: 'Student not found' });
+      res.status(404).json({ error: 'Student not found. The student you are looking for does not exist or may have been deleted.' });
       return;
     }
 
@@ -159,7 +190,9 @@ export const getStudent = async (req: Request, res: Response): Promise<void> => 
     res.json(student);
   } catch (error) {
     console.error('Get student error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ 
+      error: 'Unable to load student information. Please refresh the page or try again later.' 
+    });
   }
 };
 
@@ -197,11 +230,27 @@ export const createStudent = async (req: Request, res: Response): Promise<void> 
     res.status(201).json(student);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      res.status(400).json({ error: 'Invalid input', details: error.errors });
+      // Format validation errors into user-friendly messages
+      const errorMessages = error.errors.map((err) => {
+        const field = err.path.join('.');
+        const message = err.message;
+        return `• ${field ? `${field}: ` : ''}${message}`;
+      });
+      const friendlyMessage = `Please fix the following errors:\n${errorMessages.join('\n')}`;
+      res.status(400).json({ 
+        error: friendlyMessage,
+        details: error.errors,
+        fieldErrors: error.errors.reduce((acc: any, err) => {
+          acc[err.path.join('.')] = err.message;
+          return acc;
+        }, {})
+      });
       return;
     }
     console.error('Create student error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ 
+      error: 'Unable to create student at this time. Please try again later or contact support if the problem persists.' 
+    });
   }
 };
 
@@ -248,11 +297,30 @@ export const updateStudent = async (req: Request, res: Response): Promise<void> 
     res.json(student);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      res.status(400).json({ error: 'Invalid input', details: error.errors });
+      const errorMessages = error.errors.map((err) => {
+        const field = err.path.join('.');
+        const message = err.message;
+        return `• ${field ? `${field}: ` : ''}${message}`;
+      });
+      const friendlyMessage = `Please fix the following errors:\n${errorMessages.join('\n')}`;
+      res.status(400).json({ 
+        error: friendlyMessage,
+        details: error.errors,
+        fieldErrors: error.errors.reduce((acc: any, err) => {
+          acc[err.path.join('.')] = err.message;
+          return acc;
+        }, {})
+      });
+      return;
+    }
+    if ((error as any).code === 'P2025') {
+      res.status(404).json({ error: 'Student not found. The student you are trying to update does not exist.' });
       return;
     }
     console.error('Update student error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ 
+      error: 'Unable to update student at this time. Please try again later or contact support if the problem persists.' 
+    });
   }
 };
 
@@ -266,8 +334,14 @@ export const deleteStudent = async (req: Request, res: Response): Promise<void> 
 
     res.status(204).send();
   } catch (error) {
+    if ((error as any).code === 'P2025') {
+      res.status(404).json({ error: 'Student not found. The student you are trying to delete does not exist.' });
+      return;
+    }
     console.error('Delete student error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ 
+      error: 'Unable to delete student at this time. Please try again later or contact support if the problem persists.' 
+    });
   }
 };
 
