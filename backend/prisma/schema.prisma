@@ -1,0 +1,209 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  INSTRUCTOR
+  STAFF
+}
+
+enum EnrollmentStatus {
+  ENROLLED
+  COMPLETED
+  DROPPED
+  PENDING
+}
+
+enum TestTypeEnum {
+  TOEFL
+  DUOLINGO
+}
+
+enum ServiceType {
+  CAREER_COACHING
+  ACADEMIC_COACHING
+  LIFE_SUPPORT
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      UserRole @default(STAFF)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  assignedCourses Course[] @relation("CourseInstructor")
+  notes          Note[]
+
+  @@map("users")
+}
+
+model Student {
+  id        String   @id @default(uuid())
+  firstName String
+  lastName  String
+  email     String?  @unique
+  phone     String?
+  dateOfBirth DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Admission Process
+  passportCollected         Boolean   @default(false)
+  applicationFormCollected  Boolean   @default(false)
+  highschoolTranscriptCollected Boolean @default(false)
+  collegeTranscriptCollected Boolean  @default(false)
+  desiredAdmissionTerm      String?
+  desiredUniversities       String[]  // Array of university names
+  major                     String?
+  homestayAddress           String?
+  bostonArrivalDate         DateTime?
+  shorelightApplication     Boolean   @default(false)
+  shorelightUniversities    String[]  // Stony Brook, UMASS Boston, University of Illinois Chicago
+  
+  // After Graduation
+  stage2Services            Boolean   @default(false)
+  expectedGraduationDate    DateTime?
+  
+  // Relations
+  enrollments      Enrollment[]
+  progressReports  ProgressReport[]
+  testScores       TestScore[]
+  invoices         Invoice[]
+  notes            Note[]
+
+  @@map("students")
+}
+
+model Course {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  instructorId String?
+  instructor   User?   @relation("CourseInstructor", fields: [instructorId], references: [id])
+  
+  // Relations
+  enrollments Enrollment[]
+
+  @@map("courses")
+}
+
+model Enrollment {
+  id        String           @id @default(uuid())
+  status    EnrollmentStatus @default(PENDING)
+  enrolledAt DateTime        @default(now())
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  // Relations
+  attendances Attendance[]
+  
+  @@unique([studentId, courseId])
+  @@map("enrollments")
+}
+
+model Attendance {
+  id        String   @id @default(uuid())
+  date      DateTime
+  present   Boolean  @default(true)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  
+  @@unique([enrollmentId, date])
+  @@map("attendances")
+}
+
+model ProgressReport {
+  id        String   @id @default(uuid())
+  date      DateTime @default(now())
+  reading   Int?     // Score 0-100
+  listening Int?     // Score 0-100
+  speaking  Int?     // Score 0-100
+  writing   Int?     // Score 0-100
+  comments  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  @@map("progress_reports")
+}
+
+model TestScore {
+  id        String       @id @default(uuid())
+  testType  TestTypeEnum
+  score     Int
+  date      DateTime
+  notes     String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  
+  studentId String
+  student   Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  @@map("test_scores")
+}
+
+model Invoice {
+  id          String   @id @default(uuid())
+  invoiceNumber String @unique
+  serviceType ServiceType
+  amount      Float
+  paidAmount  Float    @default(0)
+  dueDate     DateTime?
+  paidDate    DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  @@map("invoices")
+}
+
+model Note {
+  id        String   @id @default(uuid())
+  content   String
+  isInternal Boolean @default(true) // Staff-only notes
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+  
+  @@map("notes")
+}
+
